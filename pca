@@ -1,0 +1,87 @@
+import math
+
+def mean_vector(X):
+    n_samples = len(X)
+    n_features = len(X[0])
+    mean = [0.0] * n_features
+    for row in X:
+        for j in range(n_features):
+            mean[j] += row[j]
+    return [m / n_samples for m in mean]
+
+def center_mean(X, mean):
+    centered = []
+    for row in X:
+        centered_row = [x - mean[j] for j, x in enumerate(row)]
+        centered.append(centered_row)
+    return centered
+
+def covarianse_matrix(B):
+    n_samples = len(B)
+    n_features = len(B[0])
+    cov = [[0.0]*n_features for k in range(n_features)]
+
+    for i in range(n_features):
+        for j in range(i, n_features):
+            sum_val = sum(B[k][i] * B[k][j] for k in range(n_samples))
+            cov[i][j] = sum_val / (n_samples - 1)
+            if i != j:
+                cov[j][i] = cov[i][j]
+    return cov
+
+def QR_factorization(matrix):
+    n = len(matrix)
+    columns = [[matrix[i][j] for i in range(n)] for j in range(n)]
+    Q_columns = []
+    R = [[0.0]*n for w in range(n)]
+
+    for j in range(n):
+        v = columns[j].copy()
+        for i in range(j):
+            R[i][j] = sum(Q_columns[i][k] * columns[j][k] for k in range(n))
+            for k in range(n):
+                v[k] -= R[i][j] * Q_columns[i][k]
+        R[j][j] = math.sqrt(sum(x**2 for x in v))
+        Q_columns.append([x / R[j][j] for x in v])
+
+    Q = [[Q_columns[j][i] for j in range(n)] for i in range(n)]
+    return Q, R
+
+def matrix_multiply(A, B):
+    n = len(A)
+    result = [[0.0]*n for _ in range(n)]
+    for i in range(n):
+        for j in range(n):
+            result[i][j] = sum(A[i][k] * B[k][j] for k in range(n))
+    return result
+
+def eigen_value_and_vec(matrix):
+    n = len(matrix)
+    A = [row.copy() for row in matrix]
+    Q_total = [[1.0 if i == j else 0.0 for j in range(n)] for i in range(n)]
+
+    for e in range(100):
+        Q, R = QR_factorization(A)
+        A = matrix_multiply(R, Q)
+        Q_total = matrix_multiply(Q_total, Q)
+
+    eigen_values = [A[i][i] for i in range(n)]
+    eigen_vectors = [[Q_total[i][j] for i in range(n)] for j in range(n)]
+    return eigen_values, eigen_vectors
+
+def pca(X, n_components):
+    mean = mean_vector(X)
+    centered_X = center_mean(X, mean)
+    cov_matrix = covarianse_matrix(centered_X)
+    eigen_values, eigen_vectors = eigen_value_and_vec(cov_matrix)
+
+    sorted_indices = sorted(range(len(eigen_values)), key=lambda k: eigen_values[k], reverse=True)
+    top_components = [eigen_vectors[i] for i in sorted_indices[:n_components]]
+
+    projected_data = []
+    for r in centered_X:
+        new = []
+        for comp in top_components:
+            new.append(sum(x * c for x, c in zip(r, comp)))
+        projected_data.append(new)
+    return projected_data
