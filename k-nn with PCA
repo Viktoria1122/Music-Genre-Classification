@@ -1,0 +1,66 @@
+import csv
+import math
+from collections import Counter
+import random
+
+class KNN:
+    def __init__(self, k=1):
+        self.k = k
+
+    def fit(self, X, y):
+        self.X_train, self.y_train = X, y
+
+    def predict(self, X_test):
+        return [self._predict_one(x) for x in X_test]
+
+    def _predict_one(self, x):
+        distances = [(math.dist(x, train_x), i) for i, train_x in enumerate(self.X_train)]
+        k_labels = [self.y_train[i] for _, i in sorted(distances)[:self.k]]
+        return Counter(k_labels).most_common(1)[0][0]
+
+def read_csv(file_path):
+    with open(file_path, 'r', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        headers = next(reader)
+        label_idx = headers.index('label')
+        exclude = {headers.index('filename'), headers.index('length'), label_idx}
+
+        X, y = [], []
+        for row in reader:
+            features = [float(val) for i, val in enumerate(row) if i not in exclude]
+            X.append(features)
+            y.append(row[label_idx])
+    return X, y
+
+def normalize(X):
+    n, m = len(X), len(X[0])
+    means = [sum(X[i][j] for i in range(n)) / n for j in range(m)]
+    stds = [math.sqrt(sum((X[i][j] - means[j])**2 for i in range(n)) / n) for j in range(m)]
+    return [[(X[i][j] - means[j]) / stds[j] if stds[j] else 0 for j in range(m)] for i in range(n)]
+
+if __name__ == "__main__":
+    X, y = read_csv("features_30_sec.csv")
+    X = normalize(X)
+
+    combined = list(zip(X, y))
+    random.shuffle(combined)
+    X, y = zip(*combined)
+    X, y = list(X), list(y)
+    split_idx = int(0.8 * len(X))
+    X_train, y_train = X[:split_idx], y[:split_idx]
+    X_test, y_test = X[split_idx:], y[split_idx:]
+
+    n_components = 5
+    X_train_pca = pca(X_train, n_components)
+
+    X_test_pca = pca(X_test, n_components)
+
+    knn = KNN(k=5)
+    knn.fit(X_train_pca, y_train)
+    predictions = knn.predict(X_test_pca)
+
+    acc = sum(p == t for p, t in zip(predictions, y_test)) / len(y_test) * 100
+
+    print(f'Accuracy: {acc:.0f}%')
+    print("Real labels:     ", y_test[:10])
+    print("Predicted labels:", predictions[:10])
